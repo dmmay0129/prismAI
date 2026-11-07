@@ -1,6 +1,6 @@
 {
   "speech": {
-    "model_size": "base",
+    "model_size": "tiny",
     "device": "cpu",
     "compute_type": "int8",
     "language": "zh",

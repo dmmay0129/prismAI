@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# 本地虚拟环境（云端用 requirements.txt 重装）
+.venv/
+
+# 本地 Whisper 模型（云端首次运行自动下载到 HF 缓存）
+models/
+
+# 本地数据库（云端首次运行自动建表，避免把本机测试账号/数据传上去）
+prism.db
+prism.db-wal
+prism.db-shm
+
+# 系统/编辑器
+.DS_Store
+Thumbs.db
+*.log

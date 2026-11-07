@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import os
-import sqlite3
 import sys
 from typing import Any, Dict, List
 
 from core.settings import get_settings
-
-_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "prism.db")
+from data.db import BACKEND, get_conn
 
 
 def _model_path(model_size: str) -> str | None:
@@ -130,10 +128,11 @@ def check_environment() -> List[Dict[str, Any]]:
         )
 
     try:
-        with sqlite3.connect(_DB_PATH, timeout=2) as conn:
+        with get_conn() as conn:
             conn.execute("SELECT 1")
+        label = "Postgres" if BACKEND == "postgres" else "SQLite"
         items.append(
-            {"name": "数据库", "status": "ok", "detail": "prism.db 可读写"}
+            {"name": "数据库", "status": "ok", "detail": f"{label} 可读写"}
         )
     except Exception as exc:
         items.append(
