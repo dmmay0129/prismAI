@@ -1,0 +1,15 @@
+# 建议 Python 3.12（3.14 下旧版 PyAV 暂无可用 wheel）
+streamlit>=1.30,<2
+plotly>=5,<8
+requests>=2.31,<3
+# 微软神经语音合成（AI 面试官语音，音色更真实）；缺失/断网时自动退回浏览器 TTS
+edge-tts>=6.1,<8
+# 以下为可选依赖：缺失时对应模态自动降级，不影响 MVP 运行
+faster-whisper>=1.0,<2
+# faster-whisper 1.2.x 与 PyAV 19 不兼容（av.open 的 metadata_errors 参数被移除）
+av>=11,<16
+# OpenCV 5.x 的 headless 包可能缺少 Haar 级联数据，固定 4.x
+opencv-python-headless>=4.8,<5
+numpy>=1.24,<3
+# 当前流水线未直接使用 librosa，保留用于后续音频特征扩展
+librosa>=0.10,<2

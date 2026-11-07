@@ -1,0 +1,6 @@
+{
+  "default": {"content": 0.55, "speech": 0.45, "vision": 0.0},
+  "行为类": {"content": 0.55, "speech": 0.45, "vision": 0.0},
+  "技术类": {"content": 0.65, "speech": 0.35, "vision": 0.0},
+  "情景类": {"content": 0.55, "speech": 0.45, "vision": 0.0}
+}

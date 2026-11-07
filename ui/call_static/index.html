@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PrismAI 语音通话</title>
+<style>
+:root{
+  --bg1:#16231d; --bg2:#0b120e;
+  --green:#4cd07d; --green-2:#3ab566;
+  --red:#e5534b; --amber:#f0b34d;
+  --text:#f2f7f4; --muted:#9db3a6;
+  --glass:rgba(255,255,255,.07); --glass-line:rgba(255,255,255,.14);
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; overflow:hidden;
+  font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+  background:linear-gradient(160deg,var(--bg1) 0%,var(--bg2) 100%);
+  color:var(--text);
+}
+.screen{
+  position:absolute; inset:0; padding:22px 20px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; gap:12px;
+}
+.hidden{display:none !important}
+
+/* 头像 */
+.avatar{
+  width:94px; height:94px; border-radius:50%;
+  background:radial-gradient(circle at 30% 28%,#7fe9ab,#2f9e63);
+  display:flex; align-items:center; justify-content:center;
+  font-size:1.9rem; font-weight:700; color:#0b2417;
+  position:relative; margin-bottom:10px;
+  box-shadow:0 8px 28px rgba(76,208,125,.35);
+}
+.avatar.small{width:72px;height:72px;font-size:1.5rem;margin-bottom:34px}
+.avatar .ring{
+  position:absolute; inset:-9px; border-radius:50%;
+  border:2px solid rgba(76,208,125,.75);
+  animation:ping 1.7s ease-out infinite;
+}
+@keyframes ping{0%{transform:scale(.92);opacity:.95}100%{transform:scale(1.32);opacity:0}}
+.avatar .bars{
+  position:absolute; left:50%; transform:translateX(-50%); bottom:-34px;
+  display:flex; gap:4px; align-items:flex-end; height:30px;
+}
+.avatar .bars i{width:6px;height:8px;background:var(--green);border-radius:3px;transition:height .15s}
+.avatar.speaking .bars i{animation:eq .85s ease-in-out infinite}
+.avatar.speaking .bars i:nth-child(2){animation-delay:.18s}
+.avatar.speaking .bars i:nth-child(3){animation-delay:.36s}
+@keyframes eq{0%,100%{height:8px}50%{height:30px}}
+.avatar.thinking .dots{display:flex;gap:5px}
+.avatar.thinking .dots i{width:7px;height:7px;border-radius:50%;background:var(--green);animation:blink 1s infinite}
+.avatar.thinking .dots i:nth-child(2){animation-delay:.2s}
+.avatar.thinking .dots i:nth-child(3){animation-delay:.4s}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+
+.name{font-size:1.35rem;font-weight:700;letter-spacing:1px}
+.sub{color:var(--muted);font-size:.92rem;line-height:1.5}
+.status{color:var(--muted);font-size:.92rem;min-height:1.3em}
+.status.rec{color:var(--green)}
+.recDot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--red);margin-right:6px;animation:blink 1s infinite}
+
+/* 顶部条（通话中） */
+.topbar{
+  position:absolute; top:14px; left:16px; right:16px;
+  display:flex; justify-content:space-between; align-items:center;
+  font-size:.85rem; color:var(--muted);
+}
+.roundbadge{
+  background:var(--glass); border:1px solid var(--glass-line);
+  padding:3px 12px; border-radius:999px; font-size:.8rem; color:var(--text);
+}
+
+/* 题目气泡 */
+.bubble{
+  max-width:88%; min-width:60%;
+  background:var(--glass); border:1px solid var(--glass-line);
+  border-radius:14px; padding:14px 18px;
+  text-align:left; line-height:1.65;
+}
+.bubble .qtext{font-size:1.02rem;color:var(--text)}
+.bubble .feedback{
+  font-size:.88rem; color:#cdeedd; background:rgba(76,208,125,.14);
+  border-left:3px solid var(--green); border-radius:6px;
+  padding:7px 10px; margin-bottom:10px;
+}
+.bubble .hint{
+  font-size:.85rem; color:#ffe3b3; background:rgba(240,179,77,.12);
+  border-left:3px solid var(--amber); border-radius:6px;
+  padding:7px 10px; margin-bottom:10px;
+}
+.bubble:empty, .bubble .qtext:empty{display:none}
+
+/* 音量电平 */
+.level{width:60%;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden;visibility:hidden}
+.level.on{visibility:visible}
+.level #levelFill{height:100%;width:0;background:linear-gradient(90deg,var(--green-2),var(--green));transition:width .08s linear}
+
+/* 按钮 */
+.actions{display:flex;align-items:center;justify-content:center;gap:34px;margin-top:14px;flex-wrap:wrap}
+.btn-round{
+  width:66px;height:66px;border-radius:50%;border:none;cursor:pointer;
+  font-size:1.05rem;font-weight:600;color:#fff;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  transition:transform .12s;
+}
+.btn-round:hover{transform:scale(1.06)}
+.btn-round.red{background:var(--red);box-shadow:0 6px 18px rgba(229,83,75,.4)}
+.btn-round.green{background:var(--green-2);box-shadow:0 6px 18px rgba(58,181,102,.4);animation:glow 1.6s ease-in-out infinite}
+.btn-round.gray{background:#3a4640;color:#cfd8d3}
+.btn-round.ghost{background:var(--glass);border:1px solid var(--glass-line);width:52px;height:52px;font-size:1.15rem}
+@keyframes glow{0%,100%{box-shadow:0 6px 18px rgba(58,181,102,.4)}50%{box-shadow:0 6px 30px rgba(58,181,102,.75)}}
+.btn-mini{
+  background:var(--glass);border:1px solid var(--glass-line);color:var(--text);
+  border-radius:999px;padding:8px 18px;font-size:.85rem;cursor:pointer;
+}
+.btn-mini:hover{border-color:var(--green);color:var(--green)}
+.small-label{font-size:.62rem;font-weight:400;opacity:.85}
+
+/* 结束/错误页 */
+.endtext{
+  max-width:80%; background:var(--glass); border:1px solid var(--glass-line);
+  border-radius:14px; padding:14px 18px; line-height:1.65; font-size:.95rem; text-align:left;
+}
+.endavg{font-size:1.1rem;font-weight:700;color:var(--green)}
+.errIcon{font-size:2.6rem}
+
+/* 摄像头画中画 */
+#camBox{
+  position:absolute; top:12px; right:12px; width:120px; height:90px;
+  border-radius:10px; overflow:hidden; border:1px solid var(--glass-line);
+  background:#000; z-index:20; box-shadow:0 4px 14px rgba(0,0,0,.4);
+}
+#camBox video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
+</style>
+</head>
+<body>
+
+<!-- 来电（响铃）界面 -->
+<div id="screen-ringing" class="screen">
+  <div class="avatar big"><span>AI</span><div class="ring"></div></div>
+  <div class="name">PrismAI 面试官</div>
+  <div class="sub">AI 语音面试来电 · 共 <span id="ringTotal">?</span> 轮<br>接听后无需手动操作，直接开口对话</div>
+  <div class="actions">
+    <button class="btn-round red" id="btnHangupRing">挂断<span class="small-label">拒绝</span></button>
+    <button class="btn-round green" id="btnAccept">接听<span class="small-label">📞</span></button>
+  </div>
+</div>
+
+<!-- 通话中界面 -->
+<div id="screen-call" class="screen hidden">
+  <div class="topbar">
+    <div class="timer" id="callTimer">00:00</div>
+    <div class="roundbadge" id="roundBadge">第 1 / ? 轮</div>
+  </div>
+  <div class="avatar small" id="callAvatar"><span>AI</span>
+    <div class="bars"><i></i><i></i><i></i></div>
+  </div>
+  <div class="status" id="callStatus">正在连接面试官…</div>
+  <div class="bubble">
+    <div class="feedback hidden" id="qFeedback"></div>
+    <div class="hint hidden" id="qHint"></div>
+    <div class="qtext" id="qText"></div>
+  </div>
+  <div class="level" id="levelBar"><div id="levelFill"></div></div>
+  <div class="actions">
+    <button class="btn-round red" id="btnHangup">挂断</button>
+    <button class="btn-round ghost" id="btnReplay" title="重播上一句">🔊</button>
+    <button class="btn-round ghost" id="btnCam" title="开启/关闭摄像头预览（仅本地显示）">🎥</button>
+    <button class="btn-mini hidden" id="btnDone">回答完毕</button>
+  </div>
+</div>
+
+<!-- 通话结束界面 -->
+<div id="screen-ended" class="screen hidden">
+  <div class="avatar big"><span>AI</span></div>
+  <div class="name">通话已结束</div>
+  <div class="endtext hidden" id="endText"></div>
+  <div class="endavg" id="endAvg"></div>
+  <div class="actions">
+    <button class="btn-round gray" id="btnQuit">关闭</button>
+    <button class="btn-round green" id="btnRestart">再来一场</button>
+  </div>
+</div>
+
+<!-- 麦克风错误界面 -->
+<div id="screen-error" class="screen hidden">
+  <div class="errIcon">🎙️</div>
+  <div class="name">无法使用麦克风</div>
+  <div class="sub" id="errMsg">请检查浏览器权限设置后重试。</div>
+  <div class="actions">
+    <button class="btn-round gray" id="btnQuitErr">挂断</button>
+    <button class="btn-round green" id="btnRetry">重试</button>
+  </div>
+</div>
+
+<!-- 摄像头画中画（仅本地预览，不上传） -->
+<div id="camBox" class="hidden"><video id="camVideo" autoplay playsinline muted></video></div>
+
+<script>
+(function(){
+"use strict";
+var S = {
+  state:'ringing', phase:null,
+  round:1, total:0,
+  question:'', feedback:'', hint:'',
+  connected:false,
+  micStream:null, camStream:null,
+  audioCtx:null, processor:null, source:null,
+  chunks:[], level:0,
+  recStarted:0, voicedMs:0, lastVoiceAt:0, recTimer:null, recTimed:false,
+  callSecs:0, callTimer:null,
+  closing:'', avg:null, camOn:false,
+};
+var VAD_START=0.020, VAD_STOP=0.011, SILENCE_MS=1600, MIN_SPEECH_MS=400, MAX_REC_MS=90000, RATE=16000;
+
+function $(id){ return document.getElementById(id); }
+function show(id){ ['screen-ringing','screen-call','screen-ended','screen-error'].forEach(function(x){ $(x).classList.add('hidden'); }); $(id).classList.remove('hidden'); }
+
+/* ---------- 与 Streamlit 主文档通信（官方组件协议） ---------- */
+// 每次回传事件带唯一序号：组件值在 rerun 间会持久保留，
+// Python 端用序号去重，避免同一事件被重复处理
+var SEQ_SID = Math.random().toString(36).slice(2, 10);
+var SEQ_N = 0;
+function postStreamlit(obj){
+  obj.seq = SEQ_SID + '-' + (++SEQ_N);
+  window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setComponentValue', value:obj, dataType:'json'}, '*');
+}
+function postFrameHeight(){
+  window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:560}, '*');
+}
+function postHost(obj){
+  window.parent.postMessage({source:'prismai-call', type:obj.type, data:obj.data}, '*');
+}
+
+// componentReady：父端收到后才接受 setComponentValue
+(function readyLoop(){
+  window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:componentReady', apiVersion:1}, '*');
+  if(!S.connected){ setTimeout(readyLoop, 600); }
+})();
+// 与主文档注入脚本握手（下行消息通道）
+(function helloLoop(){
+  postHost({type:'hello'});
+  if(!S.hostAcked){ setTimeout(helloLoop, 1200); }
+})();
+
+window.addEventListener('message', function(ev){
+  var d = ev.data || {};
+  if (d.type === 'streamlit:render') {
+    if (!S.connected) { S.connected = true; postFrameHeight(); }
+    return;
+  }
+  if (d.source !== 'prismai-call') return;
+  if (d.type === 'hello-ack') { S.hostAcked = true; return; }
+  if (d.type === 'turn') { handleTurn(d); return; }
+  if (d.type === 'end')  { showEnded(d); return; }
+  if (d.type === 'reset'){ resetToRinging(); return; }
+});
+
+/* ---------- 界面切换 ---------- */
+function setScreen(name){ S.state = name; }
+function showScreens(id){ show(id); }
+
+function handleTurn(d){
+  if (d.round) S.round = d.round;
+  if (d.total) S.total = d.total;
+  updateRoundBadge();
+  if (S.state !== 'incall') return; // 异常状态下忽略，等 reset/end
+  S.phase = d.phase;
+  S.question = d.question || S.question;
+  S.feedback = d.feedback || '';
+  S.hint = d.hint || '';
+  if (d.phase === 'speak') {
+    stopRec();
+    $('qText').textContent = S.question;
+    var fb = $('qFeedback'), ht = $('qHint');
+    if (S.feedback) { fb.textContent = S.feedback; fb.classList.remove('hidden'); } else { fb.classList.add('hidden'); }
+    if (S.hint) { ht.textContent = S.hint; ht.classList.remove('hidden'); } else { ht.classList.add('hidden'); }
+    setStatus('AI 面试官正在提问…');
+    $('callAvatar').classList.add('speaking');
+    $('callAvatar').classList.remove('thinking');
+  } else if (d.phase === 'listen') {
+    $('callAvatar').classList.remove('speaking');
+    $('callAvatar').classList.remove('thinking');
+    setStatus('<span class="recDot"></span>请直接开口回答（说完自动停止）', true);
+    startRec();
+  } else if (d.phase === 'think') {
+    stopRec();
+    $('callAvatar').classList.remove('speaking');
+    $('callAvatar').classList.add('thinking');
+    setStatus('AI 正在思考…');
+  }
+}
+
+function showEnded(d){
+  stopRec(); stopCam(); stopCallTimer();
+  show('screen-ended');
+  S.state = 'ended';
+  S.closing = d.closing || '本次通话结束，感谢参与。';
+  S.avg = (d.avg !== undefined && d.avg !== null) ? d.avg : null;
+  var t = $('endText'), a = $('endAvg');
+  if (S.closing) { t.textContent = S.closing; t.classList.remove('hidden'); }
+  if (S.avg !== null) { a.textContent = '本场平均分 ' + S.avg + ' 分'; } else { a.textContent = ''; }
+}
+
+function resetToRinging(){
+  stopRec(); stopCam(); stopCallTimer();
+  S.question=''; S.feedback=''; S.hint=''; S.closing=''; S.avg=null; S.round=1;
+  $('qText').textContent='';
+  show('screen-ringing');
+  S.state = 'ringing';
+}
+
+function setStatus(html, rec){
+  var el = $('callStatus');
+  el.innerHTML = html;
+  if (rec) el.classList.add('rec'); else el.classList.remove('rec');
+}
+
+function updateRoundBadge(){
+  $('roundBadge').textContent = '第 ' + S.round + ' / ' + (S.total || '?') + ' 轮';
+  $('ringTotal').textContent = S.total || '?';
+}
+
+/* ---------- 计时器 ---------- */
+function startCallTimer(){
+  S.callSecs = 0;
+  S.callTimer = setInterval(function(){
+    S.callSecs++;
+    var m = Math.floor(S.callSecs/60), s = S.callSecs%60;
+    $('callTimer').textContent = (m<10?'0':'')+m+':'+(s<10?'0':'')+s;
+  }, 1000);
+}
+function stopCallTimer(){ if (S.callTimer) { clearInterval(S.callTimer); S.callTimer = null; } }
+
+/* ---------- 麦克风与录音 ---------- */
+function getMic(){
+  return navigator.mediaDevices.getUserMedia({
+    audio:{channelCount:1, echoCancellation:true, noiseSuppression:true, autoGainControl:true},
+    video:false,
+  });
+}
+
+function rmsOf(buf){
+  var s=0, i;
+  for (i=0;i<buf.length;i++){ s += buf[i]*buf[i]; }
+  return Math.sqrt(s/buf.length);
+}
+
+function startRec(){
+  if (S.processor) return; // 已在录音
+  if (!S.micStream) return;
+  try {
+    S.audioCtx = new (window.AudioContext || window.webkitAudioContext)({sampleRate:RATE});
+    S.source = S.audioCtx.createMediaStreamSource(S.micStream);
+    S.processor = S.audioCtx.createScriptProcessor(4096, 1, 1);
+    S.chunks = []; S.level = 0; S.voicedMs = 0; S.lastVoiceAt = 0; S.recTimed = false;
+    S.recStarted = Date.now();
+    S.processor.onaudioprocess = function(e){
+      var buf = e.inputBuffer.getChannelData(0);
+      var r = rmsOf(buf);
+      S.level = Math.min(1, r / 0.15);
+      var copy = new Float32Array(buf.length);
+      copy.set(buf);
+      S.chunks.push(copy);
+      var now = Date.now();
+      var dur = buf.length / RATE * 1000;
+      if (r > VAD_START) { S.lastVoiceAt = now; S.voicedMs += dur; }
+      var silence = now - S.lastVoiceAt;
+      if (!S.recTimed && S.lastVoiceAt && silence >= SILENCE_MS) { S.recTimed = true; finalizeRec(); }
+      if (!S.recTimed && now - S.recStarted >= MAX_REC_MS) { S.recTimed = true; finalizeRec(); }
+    };
+    // 电平条渲染
+    var levelTimer = setInterval(function(){
+      $('levelFill').style.width = Math.round(S.level*100) + '%';
+      if (!S.processor) { clearInterval(levelTimer); }
+    }, 60);
+    S.source.connect(S.processor);
+    S.processor.connect(S.audioCtx.destination);
+    $('levelBar').classList.add('on');
+    $('btnDone').classList.remove('hidden');
+  } catch (err) {
+    stopRec();
+    showMicError('录音初始化失败：' + (err && err.message ? err.message : err));
+  }
+}
+
+function stopRec(){
+  try { if (S.processor) { S.processor.disconnect(); S.processor.onaudioprocess = null; } } catch(e){}
+  S.processor = null;
+  try { if (S.source) S.source.disconnect(); } catch(e){}
+  S.source = null;
+  try { if (S.audioCtx && S.audioCtx.state !== 'closed') S.audioCtx.close(); } catch(e){}
+  S.audioCtx = null;
+  $('levelBar').classList.remove('on');
+  $('btnDone').classList.add('hidden');
+}
+
+function finalizeRec(){
+  var chunks = S.chunks.slice();
+  stopRec();
+  if (S.phase !== 'listen') return; // 重复触发保护
+  S.phase = 'think';
+  setStatus('AI 正在思考…');
+  $('callAvatar').classList.add('thinking');
+  if (S.voicedMs < MIN_SPEECH_MS) {
+    postStreamlit({event:'no_speech', voiced_ms:Math.round(S.voicedMs)});
+    return;
+  }
+  var total = 0, i;
+  for (i=0;i<chunks.length;i++){ total += chunks[i].length; }
+  var floats = new Float32Array(total);
+  var off = 0;
+  for (i=0;i<chunks.length;i++){ floats.set(chunks[i], off); off += chunks[i].length; }
+  var wav = encodeWav(floats, RATE);
+  var b64 = u8ToB64(wav);
+  postStreamlit({event:'audio', data:b64, duration_sec:Math.round(total/RATE*10)/10, sample_rate:RATE});
+}
+
+function encodeWav(floats, rate){
+  var n = floats.length;
+  var buf = new ArrayBuffer(44 + n*2);
+  var dv = new DataView(buf);
+  function wstr(o, s){ for (var i=0;i<s.length;i++){ dv.setUint8(o+i, s.charCodeAt(i)); } }
+  wstr(0,'RIFF'); dv.setUint32(4, 36+n*2, true); wstr(8,'WAVE');
+  wstr(12,'fmt '); dv.setUint32(16,16,true); dv.setUint16(20,1,true); dv.setUint16(22,1,true);
+  dv.setUint32(24,rate,true); dv.setUint32(28,rate*2,true); dv.setUint16(32,2,true); dv.setUint16(34,16,true);
+  wstr(36,'data'); dv.setUint32(40,n*2,true);
+  var o = 44, v;
+  for (var i=0;i<n;i++){
+    v = Math.max(-1, Math.min(1, floats[i]));
+    dv.setInt16(o, v < 0 ? v*0x8000 : v*0x7FFF, true);
+    o += 2;
+  }
+  return new Uint8Array(buf);
+}
+
+function u8ToB64(bytes){
+  var bin = '', chunk = 0x8000;
+  for (var i=0;i<bytes.length;i+=chunk){
+    bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+  }
+  return btoa(bin);
+}
+
+/* ---------- 摄像头预览（仅本地显示，不上传） ---------- */
+function toggleCam(){
+  if (S.camOn) { stopCam(); return; }
+  navigator.mediaDevices.getUserMedia({video:{width:{ideal:640},height:{ideal:480}}, audio:false})
+    .then(function(stream){
+      S.camStream = stream;
+      var v = $('camVideo');
+      v.srcObject = stream;
+      v.play().catch(function(){});
+      S.camOn = true;
+      $('camBox').classList.remove('hidden');
+    })
+    .catch(function(err){
+      setStatus('摄像头不可用：' + (err && err.message ? err.message : err));
+      setTimeout(function(){ if (S.state==='incall') { setStatus(S.phase==='listen' ? '请直接开口回答' : 'AI 面试官正在提问…'); } }, 2600);
+    });
+}
+function stopCam(){
+  if (S.camStream) { S.camStream.getTracks().forEach(function(t){ t.stop(); }); S.camStream = null; }
+  S.camOn = false;
+  $('camBox').classList.add('hidden');
+}
+
+/* ---------- 麦克风错误 ---------- */
+function showMicError(msg){
+  stopRec();
+  show('screen-error');
+  S.state = 'error';
+  $('errMsg').textContent = msg || '请检查浏览器权限设置后重试。';
+  postStreamlit({event:'mic_error', message:msg || ''});
+}
+
+/* ---------- 挂断 / 结束 ---------- */
+function hangup(){
+  stopRec(); stopCam(); stopCallTimer();
+  var hadCall = (S.state === 'incall');
+  if (hadCall) {
+    S.closing = '通话已结束';
+    $('endText').textContent = '通话已结束';
+    $('endText').classList.remove('hidden');
+  } else {
+    $('endText').classList.add('hidden');
+  }
+  $('endAvg').textContent = '';
+  show('screen-ended');
+  S.state = 'ended';
+  postStreamlit({event:'hangup'});
+}
+
+/* ---------- 按钮 ---------- */
+$('btnAccept').addEventListener('click', function(){
+  getMic().then(function(stream){
+    S.micStream = stream;
+    show('screen-call');
+    S.state = 'incall';
+    S.phase = null;
+    setStatus('正在连接面试官…');
+    updateRoundBadge();
+    startCallTimer();
+    postStreamlit({event:'ready'});
+  }).catch(function(err){
+    showMicError('没有获得麦克风权限：' + (err && err.name === 'NotAllowedError' ? '请在浏览器地址栏允许麦克风后重试。' : (err && err.message ? err.message : err)));
+  });
+});
+$('btnHangupRing').addEventListener('click', hangup);
+$('btnHangup').addEventListener('click', hangup);
+$('btnQuitErr').addEventListener('click', hangup);
+$('btnDone').addEventListener('click', function(){ if (S.processor && !S.recTimed) { S.recTimed = true; finalizeRec(); } });
+$('btnReplay').addEventListener('click', function(){ postHost({type:'replay'}); });
+$('btnCam').addEventListener('click', toggleCam);
+$('btnRestart').addEventListener('click', function(){
+  stopRec(); stopCam(); stopCallTimer();
+  resetToRinging();
+  postStreamlit({event:'restart'});
+});
+$('btnQuit').addEventListener('click', function(){
+  stopRec(); stopCam(); stopCallTimer();
+  postStreamlit({event:'quit'});
+});
+$('btnRetry').addEventListener('click', function(){
+  getMic().then(function(stream){
+    S.micStream = stream;
+    show('screen-call');
+    S.state = 'incall';
+    setStatus('正在重新连接面试官…');
+    startCallTimer();
+    postStreamlit({event:'ready'});
+  }).catch(function(err){
+    showMicError('仍然无法使用麦克风：' + (err && err.name === 'NotAllowedError' ? '请在浏览器地址栏允许麦克风后重试。' : (err && err.message ? err.message : err)));
+  });
+});
+})();
+</script>
+</body>
+</html>
