@@ -181,8 +181,8 @@ def list_interview_sessions(username: str, limit: int = 20) -> list[dict]:
     if not username:
         return []
     query = (
-        "SELECT session_id, COUNT(*), MAX(created_at), "
-        "ROUND(AVG(overall), 1) FROM interview_turns "
+        "SELECT session_id, COUNT(*), MAX(created_at), AVG(overall) "
+        "FROM interview_turns "
         f"WHERE user_id = {PH} GROUP BY session_id "
         f"ORDER BY MAX(created_at) DESC LIMIT {PH}"
     )
@@ -190,7 +190,7 @@ def list_interview_sessions(username: str, limit: int = 20) -> list[dict]:
         rows = conn.execute(query, (username, max(1, int(limit)))).fetchall()
     return [
         {"session_id": row[0], "turn_count": row[1],
-         "created_at": row[2], "average_score": row[3]}
+         "created_at": row[2], "average_score": round(float(row[3]), 1)}
         for row in rows
     ]
 
